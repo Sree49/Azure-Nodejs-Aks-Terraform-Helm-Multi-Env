@@ -14,7 +14,7 @@ parameters:
       - prod
 
 variables:
-  azureServiceConnection: 'azure-connection'
+  azureServiceConnection: 'azure'
   backendRG: 'RG'
   backendStorage: 'tfstatefilestore1678'
   backendContainer: 'tfstate-container'
