@@ -1,0 +1,56 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+variables:
+  azureServiceConnection: 'azure-connection'
+  backendRG: 'RG'
+  backendStorage: 'tfstatefilestore1678'
+  backendContainer: 'tfstate-container'
+  imageRepository: 'my-app'
+
+stages:
+  - stage: 'Provision'
+    displayName: 'Provision'
+    pool: 
+      vmImage: ubuntu-latest
+    jobs:
+      - job: 'Provision'
+        steps:
+          
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: 'latest'
+          
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+              backendServiceArm: '$(azureServiceConnection)'
+              backendAzureRmResourceGroupName: '$(backendRG)'
+              backendAzureRmStorageAccountName: '$(backendStorage)'
+              backendAzureRmContainerName: '$(backendContainer)'
+              backendAzureRmKey: '$(imageRepository)'
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+              command: 'validate'
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+              command: 'plan'
+          - task: TerraformTask@5
+            inputs:
+              provider: 'azurerm'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+              command: 'apply'
+              commandOptions: '-auto-approve'
+              environmentServiceNameAzureRM: '$(azureServiceConnection)'
+    
