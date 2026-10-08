@@ -3,63 +3,21 @@ trigger:
   - main
 
 variables:
-  azureServiceConnection: 'azure'                  
-  backendRG: 'RG'                 
-  backendStorage: 'tfstatefilestore1678'          
-  backendContainer: 'tfstate-container'                    
-  imageRepository: 'my-app'                      
-  projectPrefix: 'nodeapp'                       # Short prefix used to standardise structural asset naming
-  # Build a shared ACR tag string targeting the environment where the container compilation lands
-  sharedAcrName: 'acrnodeappdev'
+  azureServiceConnection: 'azure'                  # Exact string identifier of your Azure DevOps Service Connection
+  backendRG: 'RG'                 # Shared infrastructure resource group for state management
+  backendStorage: 'tfstatefilestore1678 '          # Globally unique central storage account name
+  backendContainer: 'tfstate-container'                    # Blob storage target container
+  imageRepository: 'my-app'                      # Name of your image registry repository
+  projectPrefix: 'nodeapp'                       # Short prefix string used to standardise cloud asset naming
 
 stages:
   # =========================================================================
-  # STAGE 1: Provision Core Infrastructure (Ensures cluster & registries exist)
+  # STAGE 1: Code Compilation & Baseline Validation Layer
   # =========================================================================
-  - stage: InfrastructureProvisioning
-    displayName: '1. Provision Cloud Topologies'
+  - stage: BuildAndPackage
+    displayName: '1. Build & Package App Context'
     jobs:
-      - job: ProvisionBaseAssets
-        displayName: 'Execute Parallel Multi-Env Base Terraform'
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - task: TerraformInstaller@1
-            inputs:
-              terraformVersion: 'latest'
-
-          # Loop compilation definitions dynamically for each target environment workspace profile sequentially
-          - ${{ each env in ['dev', 'qa', 'prod'] }}:
-            - task: TerraformTaskV4@4
-              displayName: 'Init Backend State [${{ env }}]'
-              inputs:
-                provider: 'azurerm'
-                command: 'init'
-                workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
-                backendServiceArm: '$(azureServiceConnection)'
-                backendAzureRmResourceGroupName: '$(backendRG)'
-                backendAzureRmStorageAccountName: '$(backendStorage)'
-                backendAzureRmContainerName: '$(backendContainer)'
-                backendAzureRmKey: '${{ env }}..terraform.tfstate'
-
-            - task: TerraformTaskV4@4
-              displayName: 'Apply Infrastructure [${{ env }}]'
-              inputs:
-                provider: 'azurerm'
-                command: 'apply'
-                workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
-                environmentServiceNameAzureRM: '$(azureServiceConnection)'
-                commandOptions: '-var-file="environments/${{ env }}.tfvars" -auto-approve'
-
-  # =========================================================================
-  # STAGE 2: Build Node.js Application and Push Container to Live Dev ACR
-  # =========================================================================
-  - stage: BuildAndPushApp
-    displayName: '2. Containerise Application'
-    dependsOn: InfrastructureProvisioning
-    condition: succeeded()
-    jobs:
-      - job: BuildAndPush
+      - job: CompileCode
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -73,40 +31,27 @@ stages:
               npm run build --if-present
             displayName: 'Compile Production Target JavaScript'
 
-          # Fixes the authentication loophole by bypassing generic Docker wrappers with explicit OIDC shells
-          - task: AzureCLI@2
-            displayName: 'Authenticate and Push to Shared Dev ACR'
-            inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                az acr login --name $(sharedAcrName)
-                docker build -t $(sharedAcrName).azurecr.io/$(imageRepository):$(Build.BuildId) -t $(sharedAcrName).azurecr.io/$(imageRepository):latest .
-                docker push $(sharedAcrName).azurecr.io/$(imageRepository):$(Build.BuildId)
-                docker push $(sharedAcrName).azurecr.io/$(imageRepository):latest
-
-          # Package application configuration parameters for subsequent stage deployment workers
+          # Drop the code workspace so subsequent environment stage workers can pick it up
           - task: PublishPipelineArtifact@1
-            displayName: 'Publish Infrastructure Modules Artifact'
+            displayName: 'Publish Deployment Infrastructure Drop'
             inputs:
               targetPath: '$(System.DefaultWorkingDirectory)'
               artifact: 'infrastructure-drop'
               publishLocation: 'pipeline'
 
   # =========================================================================
-  # STAGE 3: Deploy Application to the DEV Environment
+  # STAGE 2: Deployment & Provisioning Flow for the DEV Environment
   # =========================================================================
   - stage: DeployDev
-    displayName: '3. Deploy to DEV'
-    dependsOn: BuildAndPushApp
+    displayName: '2. Deploy to DEV'
+    dependsOn: BuildAndPackage
     condition: succeeded()
     jobs:
-      - deployment: DeployDevCluster
-        displayName: 'Deploy App to Dev AKS Pool'
+      - deployment: DevClusterDeployment
+        displayName: 'Provision and Deploy Dev Stage'
         pool:
           vmImage: 'ubuntu-latest'
-        environment: 'DEV-Environment' # Maps deployment history tracking in UI
+        environment: 'DEV-Environment' # Triggers immediate automated rollout
         strategy:
           runOnce:
             deploy:
@@ -115,24 +60,26 @@ stages:
                   parameters:
                     environment: 'dev'
                     azureServiceConnection: '$(azureServiceConnection)'
+                    backendRG: '$(backendRG)'
+                    backendStorage: '$(backendStorage)'
+                    backendContainer: '$(backendContainer)'
                     projectPrefix: '$(projectPrefix)'
-                    acrName: '$(sharedAcrName)'
                     imageRepository: '$(imageRepository)'
                     imageTag: '$(Build.BuildId)'
 
   # =========================================================================
-  # STAGE 4: Deploy Application to the QA Environment (Enforces Quality Gates)
+  # STAGE 3: Deployment & Provisioning Flow for the QA Environment (Gated)
   # =========================================================================
   - stage: DeployQA
-    displayName: '4. Deploy to QA'
+    displayName: '3. Deploy to QA'
     dependsOn: DeployDev
     condition: succeeded()
     jobs:
-      - deployment: DeployQACluster
-        displayName: 'Deploy App to QA AKS Pool'
+      - deployment: QaClusterDeployment
+        displayName: 'Provision and Deploy QA Stage'
         pool:
           vmImage: 'ubuntu-latest'
-        # 🚦 DEV OVERSIGHT GATEWAY: Apply automated check criteria (Azure Monitor / API Hooks) here
+        # 🚦 DEV TO QA APPROVAL GATE: Pipeline stops here until manually authorized in the UI
         environment: 'QA-Environment'
         strategy:
           runOnce:
@@ -142,24 +89,26 @@ stages:
                   parameters:
                     environment: 'qa'
                     azureServiceConnection: '$(azureServiceConnection)'
+                    backendRG: '$(backendRG)'
+                    backendStorage: '$(backendStorage)'
+                    backendContainer: '$(backendContainer)'
                     projectPrefix: '$(projectPrefix)'
-                    acrName: '$(sharedAcrName)'
                     imageRepository: '$(imageRepository)'
                     imageTag: '$(Build.BuildId)'
 
   # =========================================================================
-  # STAGE 5: Deploy Application to the PROD Environment (Enforces Control Gates)
+  # STAGE 4: Deployment & Provisioning Flow for the PROD Environment (Gated)
   # =========================================================================
   - stage: DeployProd
-    displayName: '5. Deploy to PROD'
+    displayName: '4. Deploy to PROD'
     dependsOn: DeployQA
     condition: succeeded()
     jobs:
-      - deployment: DeployProdCluster
-        displayName: 'Deploy App to Production AKS Pool'
+      - deployment: ProdClusterDeployment
+        displayName: 'Provision and Deploy Prod Stage'
         pool:
           vmImage: 'ubuntu-latest'
-        # 🔒 PRODUCTION SECURITY BLANKET: Apply Manual Approvals and Business Hours here
+        # 🔒 QA TO PROD APPROVAL GATE: Pipeline stops here until manually authorized in the UI
         environment: 'PROD-Environment-Gate'
         strategy:
           runOnce:
@@ -169,7 +118,9 @@ stages:
                   parameters:
                     environment: 'prod'
                     azureServiceConnection: '$(azureServiceConnection)'
+                    backendRG: '$(backendRG)'
+                    backendStorage: '$(backendStorage)'
+                    backendContainer: '$(backendContainer)'
                     projectPrefix: '$(projectPrefix)'
-                    acrName: '$(sharedAcrName)'
                     imageRepository: '$(imageRepository)'
                     imageTag: '$(Build.BuildId)'
