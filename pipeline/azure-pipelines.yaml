@@ -27,6 +27,7 @@ stages:
             displayName: 'Setup Node.js Environment'
 
           - script: |
+              cd app
               npm ci
               npm run build --if-present
             displayName: 'Compile Production Target JavaScript'
