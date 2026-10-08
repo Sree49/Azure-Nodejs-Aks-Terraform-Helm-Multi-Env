@@ -7,7 +7,7 @@ variable "environment" {
     }
 variable "location" {
   type    = string
-  default = "canada-central"
+  default = "canadacentral"
 }
 variable "vnet_cidr" { type = string }
 variable "subnet_cidr" { type = string }
