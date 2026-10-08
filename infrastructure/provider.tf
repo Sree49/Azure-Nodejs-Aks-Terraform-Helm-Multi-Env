@@ -21,7 +21,11 @@ terraform {
   
 }
 provider "azurerm" {
-  features {}
+  features {
+    use_msi         = false
+  use_cli         = false
+  use_oidc        = true
+  }
 }
 
 provider "helm" {
