@@ -14,6 +14,10 @@ terraform {
       version = "~> 2.0"
     }
   }
+  backend "azurerm" {
+    # Dynamically injected by the Azure DevOps pipeline at runtime
+  }
+
   
 }
 provider "azurerm" {
