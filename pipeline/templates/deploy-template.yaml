@@ -1,11 +1,16 @@
+# templates/deploy-env-template.yml
 parameters:
   - name: environment
     type: string
   - name: azureServiceConnection
     type: string
-  - name: projectPrefix
+  - name: backendRG
     type: string
-  - name: acrName
+  - name: backendStorage
+    type: string
+  - name: backendContainer
+    type: string
+  - name: projectPrefix
     type: string
   - name: imageRepository
     type: string
@@ -13,40 +18,91 @@ parameters:
     type: string
 
 steps:
+  # 1. Download the code repository snapshot dropped by the initial Build stage execution
   - task: DownloadPipelineArtifact@2
-    displayName: 'Fetch Application Workspace Drop'
+    displayName: 'Fetch Source Infrastructure Artifacts'
     inputs:
       artifact: 'infrastructure-drop'
       targetPath: '$(System.DefaultWorkingDirectory)'
 
-
-  - task: AzureCLI@2
-    displayName: 'Connect Runner Session to AKS Context (${{ parameters.environment }})'
+  # 2. Install the target Terraform CLI Binary onto the ephemeral agent
+  - task: TerraformInstaller@1
+    displayName: 'Install Terraform Engine'
     inputs:
-      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      terraformVersion: 'latest'
+
+  # 3. Initialise the environment-specific remote state storage container file
+  - task: TerraformTaskV4@4
+    displayName: 'Init Backend State (${{ parameters.environment }})'
+    inputs:
+      provider: 'azurerm'
+      command: 'init'
+      workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+      backendServiceArm: '$(azureServiceConnection)'
+      backendAzureRmResourceGroupName: '$(backendRG)'
+      backendAzureRmStorageAccountName: '$(backendStorage)'
+      backendAzureRmContainerName: '$(backendContainer)'
+      backendAzureRmKey: '${{ parameters.environment }}.terraform.tfstate'
+
+  # 4. Apply the structural architecture components (ACR, VNet, AKS Cluster)
+  - task: TerraformTaskV4@4
+    displayName: 'Apply Base Infrastructure Topologies (${{ parameters.environment }})'
+    inputs:
+      provider: 'azurerm'
+      command: 'apply'
+      workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+      environmentServiceNameAzureRM: '$(azureServiceConnection)'
+      commandOptions: '-var-file="environments/${{ parameters.environment }}.tfvars" -auto-approve'
+
+  # 5. Build, tag, and push the application container directly to the freshly live ACR
+  - task: AzureCLI@2
+    displayName: 'Compile and Push Docker Image to ACR (${{ parameters.environment }})'
+    inputs:
+      azureSubscription: '$(azureServiceConnection)'
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
-        echo "Retrieving cluster credentials for AKS..."
+        # Generate the standard name matching your environment variables
+        TARGET_ACR="acr${{ parameters.projectPrefix }}${{ parameters.environment }}"
+        
+        echo "Authenticating daemon with $TARGET_ACR..."
+        az acr login --name $TARGET_ACR
+        
+        echo "Compiling Node.js Docker context layer..."
+        cd $(System.DefaultWorkingDirectory)
+        docker build -t $TARGET_ACR.azurecr.io/${{ parameters.imageRepository }}:${{ parameters.imageTag }} -t $TARGET_ACR.azurecr.io/${{ parameters.imageRepository }}:latest .
+        
+        echo "Uploading compiled packets to container registry..."
+        docker push $TARGET_ACR.azurecr.io/${{ parameters.imageRepository }}:${{ parameters.imageTag }}
+        docker push $TARGET_ACR.azurecr.io/${{ parameters.imageRepository }}:latest
+
+  # 6. Inject the cluster administrative certificate context directly into the agent workspace shell
+  - task: AzureCLI@2
+    displayName: 'Connect Runner Session to AKS Context (${{ parameters.environment }})'
+    inputs:
+      azureSubscription: '$(azureServiceConnection)'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
         az aks get-credentials \
           --resource-group rg-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
           --name aks-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
           --overwrite-existing
 
-  
+  # 7. Roll out your application deployment utilizing the native Helm task engine tool wrapper
   - task: HelmDeploy@0
     displayName: 'Execute Helm Release Upgrade (${{ parameters.environment }})'
     inputs:
       connectionType: 'Azure Resource Manager'
-      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      azureSubscription: '$(azureServiceConnection)'
       azureResourceGroup: 'rg-${{ parameters.projectPrefix }}-${{ parameters.environment }}'
       kubernetesCluster: 'aks-${{ parameters.projectPrefix }}-${{ parameters.environment }}'
       command: 'upgrade'
       chartType: 'FilePath'
-      chartPath: '$(System.DefaultWorkingDirectory)/helm/my-app'
-      releaseName: 'my-app'
+      chartPath: '$(System.DefaultWorkingDirectory)/helm/my-node-app'
+      releaseName: 'my-node-app'
       namespace: 'apps'
       waitForExecution: true
       overrideValues: |
-        image.repository=${{ parameters.acrName }}.azurecr.io/${{ parameters.imageRepository }}
+        image.repository=acr${{ parameters.projectPrefix }}${{ parameters.environment }}.azurecr.io/${{ parameters.imageRepository }}
         image.tag=${{ parameters.imageTag }}
