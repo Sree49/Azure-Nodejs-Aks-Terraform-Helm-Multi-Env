@@ -35,13 +35,3 @@ module "aks" {
   acr_id              = module.acr.id
 }
 
-module "helm_release" {
-  source           = "./modules/helm_release"
-  environment      = var.environment
-  acr_login_server = module.acr.login_server
-  app_image_tag    = var.app_image_tag
-  chart_path       = "${path.module}/../helm/my-app"
-
-  # Ensure the role assignment is complete before letting Helm attempt to pull images
-  depends_on = [module.aks]
-}
