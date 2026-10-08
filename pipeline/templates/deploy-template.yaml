@@ -1,0 +1,52 @@
+parameters:
+  - name: environment
+    type: string
+  - name: azureServiceConnection
+    type: string
+  - name: projectPrefix
+    type: string
+  - name: acrName
+    type: string
+  - name: imageRepository
+    type: string
+  - name: imageTag
+    type: string
+
+steps:
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Fetch Application Workspace Drop'
+    inputs:
+      artifact: 'infrastructure-drop'
+      targetPath: '$(System.DefaultWorkingDirectory)'
+
+
+  - task: AzureCLI@2
+    displayName: 'Connect Runner Session to AKS Context (${{ parameters.environment }})'
+    inputs:
+      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        echo "Retrieving cluster credentials for AKS..."
+        az aks get-credentials \
+          --resource-group rg-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
+          --name aks-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
+          --overwrite-existing
+
+  
+  - task: HelmDeploy@0
+    displayName: 'Execute Helm Release Upgrade (${{ parameters.environment }})'
+    inputs:
+      connectionType: 'Azure Resource Manager'
+      azureSubscription: '${{ parameters.azureServiceConnection }}'
+      azureResourceGroup: 'rg-${{ parameters.projectPrefix }}-${{ parameters.environment }}'
+      kubernetesCluster: 'aks-${{ parameters.projectPrefix }}-${{ parameters.environment }}'
+      command: 'upgrade'
+      chartType: 'FilePath'
+      chartPath: '$(System.DefaultWorkingDirectory)/helm/my-app'
+      releaseName: 'my-app'
+      namespace: 'apps'
+      waitForExecution: true
+      overrideValues: |
+        image.repository=${{ parameters.acrName }}.azurecr.io/${{ parameters.imageRepository }}
+        image.tag=${{ parameters.imageTag }}
