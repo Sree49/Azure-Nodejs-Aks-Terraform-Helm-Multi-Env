@@ -60,11 +60,7 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
               environmentServiceNameAzureRM: '$(azureServiceConnection)'
               commandOptions: '-var-file="environments/${{ parameters.environment }}.tfvars"'
-            env:
-              ARM_CLIENT_ID: $(client_id)
-              ARM_CLIENT_SECRET: $(client_secret)
-              ARM_TENANT_ID: $(tenant_id)
-              ARM_SUBSCRIPTION_ID: $(subscription_id)
+            
           - task: TerraformTask@5
             displayName: 'Apply Modifications to Azure'
             inputs:
