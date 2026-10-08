@@ -18,6 +18,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 }
 
+data "azurerm_client_config" "current" {}
+
 resource "azurerm_role_assignment" "aks_acr" {
   principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
   role_definition_name             = "AcrPull"
