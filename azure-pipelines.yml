@@ -1,32 +1,40 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
+# Verified Multi-Environment Terraform Pipeline
 trigger:
-- master
+  - master
+
+# 1. Allow the user to select the target environment at runtime
+parameters:
+  - name: environment
+    displayName: 'Target Environment'
+    type: string
+    default: 'dev'
+    values:
+      - dev
+      - qa
+      - prod
 
 variables:
   azureServiceConnection: 'azure-connection'
   backendRG: 'RG'
   backendStorage: 'tfstatefilestore1678'
   backendContainer: 'tfstate-container'
-  imageRepository: 'my-app'
 
 stages:
-  - stage: 'Provision'
-    displayName: 'Provision'
+  - stage: ProvisionInfrastructure
+    displayName: 'Provision Infrastructure'
     pool: 
-      vmImage: ubuntu-latest
+      vmImage: 'ubuntu-latest'
     jobs:
-      - job: 'Provision'
+      - job: ExecuteTerraform
+        displayName: 'Run Pipeline Sequence'
         steps:
-          
           - task: TerraformInstaller@1
+            displayName: 'Install Terraform Engine'
             inputs:
               terraformVersion: 'latest'
           
           - task: TerraformTask@5
+            displayName: 'Initialize State Backend'
             inputs:
               provider: 'azurerm'
               command: 'init'
@@ -35,22 +43,29 @@ stages:
               backendAzureRmResourceGroupName: '$(backendRG)'
               backendAzureRmStorageAccountName: '$(backendStorage)'
               backendAzureRmContainerName: '$(backendContainer)'
-              backendAzureRmKey: '$(imageRepository)'
+              backendAzureRmKey: '${{ parameters.environment }}.terraform.tfstate'
+
           - task: TerraformTask@5
+            displayName: 'Static Schema Validation'
             inputs:
               provider: 'azurerm'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
               command: 'validate'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+
           - task: TerraformTask@5
+            displayName: 'Generate Structural Plan'
             inputs:
               provider: 'azurerm'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
               command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
+              environmentServiceNameAzureRM: '$(azureServiceConnection)'
+              commandOptions: '-var-file="environments/${{ parameters.environment }}.tfvars"'
+
           - task: TerraformTask@5
+            displayName: 'Apply Modifications to Azure'
             inputs:
               provider: 'azurerm'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
               command: 'apply'
-              commandOptions: '-auto-approve'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
               environmentServiceNameAzureRM: '$(azureServiceConnection)'
-    
+              commandOptions: '-var-file="environments/${{ parameters.environment }}.tfvars" -auto-approve'
