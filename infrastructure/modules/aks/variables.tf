@@ -1,0 +1,8 @@
+variable "project_name" {}
+variable "environment" {}
+variable "location" {}
+variable "resource_group_name" {}
+variable "subnet_id" {}
+variable "vm_size" {}
+variable "node_count" {}
+variable "acr_id" {}
