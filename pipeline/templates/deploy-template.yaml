@@ -84,7 +84,7 @@ steps:
         az acr login --name $TARGET_ACR
         
         echo "Compiling Node.js Docker context layer..."
-        cd $(System.DefaultWorkingDirectory)
+        cd $(System.DefaultWorkingDirectory)/app/src
         docker build -t $TARGET_ACR.azurecr.io/${{ parameters.imageRepository }}:${{ parameters.imageTag }} -t $TARGET_ACR.azurecr.io/${{ parameters.imageRepository }}:latest .
         
         echo "Uploading compiled packets to container registry..."
