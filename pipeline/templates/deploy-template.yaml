@@ -116,7 +116,6 @@ steps:
       chartType: 'FilePath'
       chartPath: '$(System.DefaultWorkingDirectory)/helm/my-app'
       releaseName: 'my-app'
-      namespace: 'apps'
       waitForExecution: true
       overrideValues: |
         image.repository=acr134${{ parameters.projectPrefix }}${{ parameters.environment }}.azurecr.io/${{ parameters.imageRepository }}
