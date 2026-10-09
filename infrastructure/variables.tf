@@ -1,6 +1,6 @@
 variable "project_name" {
   type    = string
-  default = "my-app"
+  default = "myapp"
 }
 variable "environment" { 
     type = string 
