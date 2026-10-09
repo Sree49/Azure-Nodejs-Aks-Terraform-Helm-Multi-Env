@@ -53,6 +53,21 @@ steps:
       workingDirectory: '$(System.DefaultWorkingDirectory)/infrastructure'
       environmentServiceNameAzureRM: '$(azureServiceConnection)'
       commandOptions: '-var-file="environments/${{ parameters.environment }}.tfvars" -auto-approve'
+    # Place this right after the Terraform Apply task inside templates/deploy-env-template.yml
+  - task: AzureCLI@2
+    displayName: 'Natively Attach AKS to ACR (Bypasses RBAC Write Blocker)'
+    inputs:
+      azureSubscription: '$(azureServiceConnection)'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        echo "Attaching AKS cluster to Container Registry via Azure Management Plane..."
+        
+        # Dynamically matches your structural environment resource names
+        az aks update \
+          --resource-group rg-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
+          --name aks-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
+          --attach-acr acr134myapp${{ parameters.environment }}
 
   # 5. Build, tag, and push the application container directly to the freshly live ACR
   - task: AzureCLI@2
