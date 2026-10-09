@@ -67,7 +67,7 @@ steps:
         az aks update \
           --resource-group rg-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
           --name aks-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
-          --attach-acr acr134myapp${{ parameters.environment }}
+          --attach-acr acr134${{ parameters.projectPrefix }}${{ parameters.environment }}
 
   # 5. Build, tag, and push the application container directly to the freshly live ACR
   - task: AzureCLI@2
