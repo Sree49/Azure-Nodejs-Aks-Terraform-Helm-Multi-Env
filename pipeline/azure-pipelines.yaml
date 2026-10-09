@@ -8,7 +8,7 @@ variables:
   backendStorage: 'tfstatefilestore1678 '          # Globally unique central storage account name
   backendContainer: 'tfstate-container'                    # Blob storage target container
   imageRepository: 'my-app'                      # Name of your image registry repository
-  projectPrefix: 'nodeapp'                       # Short prefix string used to standardise cloud asset naming
+  projectPrefix: 'my-app'                       # Short prefix string used to standardise cloud asset naming
 
 stages:
   # =========================================================================
