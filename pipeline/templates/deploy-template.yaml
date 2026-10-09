@@ -67,7 +67,7 @@ steps:
         az aks update \
           --resource-group rg-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
           --name aks-${{ parameters.projectPrefix }}-${{ parameters.environment }} \
-          --attach-acr acr134${replace("${{ parameters.projectPrefix }}${{ parameters.environment }}", "-", "")}
+          --attach-acr acr134${{ parameters.projectPrefix }}${{ parameters.environment }}
 
   # 5. Build, tag, and push the application container directly to the freshly live ACR
   - task: AzureCLI@2
@@ -114,8 +114,8 @@ steps:
       kubernetesCluster: 'aks-${{ parameters.projectPrefix }}-${{ parameters.environment }}'
       command: 'upgrade'
       chartType: 'FilePath'
-      chartPath: '$(System.DefaultWorkingDirectory)/helm/my-node-app'
-      releaseName: 'my-node-app'
+      chartPath: '$(System.DefaultWorkingDirectory)/helm/my-app'
+      releaseName: 'my-app'
       namespace: 'apps'
       waitForExecution: true
       overrideValues: |
