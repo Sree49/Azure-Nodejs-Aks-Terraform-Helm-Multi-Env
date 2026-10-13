@@ -6,7 +6,7 @@ app folder: package.json file, Dockerfile, src\server.js file.
 Terraform: \
 Modules: \
 RG, ACR, AKS, VNET \
-ACR Pull resource code. \
+ACR Pull resource code. (provide user access administrator role for azure service connection) \
 Environments folder: \
 dev.tfvars, dev.yaml \
 prod.tfvars, prod.yaml \
