@@ -25,9 +25,9 @@ Dockerfile: to build image app->Dockerfile\
 <img src="./images/acr.png" alt="acr" width="400">
 
 Helm folder: to deploy kubernetes objects using helm charts. \
-<img src="./images/resource.png" alt="kube-cluster" width="400"> \
-<img src="./images/namespace.png" alt="kube-cluster" width="400"> \
-<img src="./images/service.png" alt="kube-cluster" width="400">
+<img src="./images/resource.png" alt="resource" width="400"> \
+<img src="./images/namespace.png" alt="namespace" width="400"> \
+<img src="./images/service.png" alt="service" width="400">
 
 Azurerm service connection- to deploy resources.
 
@@ -37,16 +37,18 @@ Main yaml file: Pipeline/azure-pipelines.yaml file.
 
 Environment: \
 Dev, QA, Prod: \
-<img src="./images/env1.png" alt="kube-cluster" width="400"> \ 
-<img src="./images/env2.png" alt="kube-cluster" width="400"> \ 
-<img src="./images/env3.png" alt="kube-cluster" width="400">
+<img src="./images/env1.png" alt="env" width="400"> \ 
+<img src="./images/env2.png" alt="env" width="400"> \
+<img src="./images/env3.png" alt="env" width="400">
 
 Multi-stage Pipeline: \
-<img src="./images/multi-stage1.png" alt="kube-cluster" width="400"> \
-<img src="./images/multi-stage2.png" alt="kube-cluster" width="400"> 
+<img src="./images/multi-stage1.png" alt="multi-stage" width="400"> \
+<img src="./images/multi-stage2.png" alt="multi-stage" width="400"> 
 
 Pipeline Stage approval: \
-<img src="./images/approval.png" alt="kube-cluster" width="400"> \
+<img src="./images/approval.png" alt="approval" width="400"> 
+
 APP:
 
+<img src="./images/aks.png" alt="aks" width="400"> \
 <img src="./images/app.png" alt="app" width="400">
